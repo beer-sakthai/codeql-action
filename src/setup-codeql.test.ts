@@ -117,6 +117,61 @@ test.serial(
   },
 );
 
+test.serial(
+  "getCodeQLSource treats a local path starting with `http` as a local path",
+  async (t) => {
+    const features = createFeatures([]);
+
+    await withTmpDir(async (tmpDir) => {
+      setupActionsVars(tmpDir, tmpDir);
+      // A relative path, so that the input itself starts with `http`.
+      const toolsInput = "http-bundle.tar.gz";
+      const source = await setupCodeql.getCodeQLSource(
+        toolsInput,
+        SAMPLE_DEFAULT_CLI_VERSION,
+        undefined, // rawLanguages
+        false, // useOverlayAwareDefaultCliVersion
+        SAMPLE_DOTCOM_API_DETAILS,
+        GitHubVariant.DOTCOM,
+        false,
+        features,
+        getRunnerLogger(true),
+      );
+
+      t.is(source.sourceType, "local");
+      t.is(source["codeqlTarPath"], toolsInput);
+      t.is(source.toolsVersion, "local");
+    });
+  },
+);
+
+test.serial(
+  "getCodeQLSource treats a URL with an uppercase scheme as a URL",
+  async (t) => {
+    const features = createFeatures([]);
+
+    await withTmpDir(async (tmpDir) => {
+      setupActionsVars(tmpDir, tmpDir);
+      const tagName = "codeql-bundle-v1.2.3";
+      mockBundleDownloadApi({ tagName });
+      const source = await setupCodeql.getCodeQLSource(
+        `HTTPS://github.com/github/codeql-action/releases/download/${tagName}/codeql-bundle-linux64.tar.gz`,
+        SAMPLE_DEFAULT_CLI_VERSION,
+        undefined, // rawLanguages
+        false, // useOverlayAwareDefaultCliVersion
+        SAMPLE_DOTCOM_API_DETAILS,
+        GitHubVariant.DOTCOM,
+        false,
+        features,
+        getRunnerLogger(true),
+      );
+
+      t.is(source.sourceType, "download");
+      t.is(source["cliVersion"], "1.2.3");
+    });
+  },
+);
+
 const LINKED_BUNDLE_TEST_CASES = [
   {
     platform: "linux",

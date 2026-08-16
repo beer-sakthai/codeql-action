@@ -420,11 +420,10 @@ export async function getCodeQLSource(
 ): Promise<CodeQLToolsSource> {
   // If there is an explicit `tools` input, it's not one of the reserved values, and it doesn't appear
   // to point to a URL, then we assume it is a local path and use the CLI from there.
-  // TODO: This appears to misclassify filenames that happen to start with `http` as URLs.
   if (
     toolsInput &&
     !isReservedToolsValue(toolsInput) &&
-    !toolsInput.startsWith("http")
+    !isToolsUrl(toolsInput)
   ) {
     logger.info(`Using CodeQL CLI from local path ${toolsInput}`);
     const compressionMethod = tar.inferCompressionMethod(toolsInput);
@@ -1083,4 +1082,15 @@ function isReservedToolsValue(tools: string): boolean {
     CODEQL_NIGHTLY_TOOLS_INPUTS.includes(tools) ||
     tools === CODEQL_TOOLCACHE_INPUT
   );
+}
+
+/**
+ * Determines whether the `tools` input points at a bundle we should download, as opposed to a
+ * local path we should read the bundle from.
+ *
+ * We match on the scheme rather than a bare `http` prefix so that a local file whose name merely
+ * starts with `http` (for example `http-bundle.tar.gz`) is not mistaken for a URL.
+ */
+function isToolsUrl(tools: string): boolean {
+  return /^https?:\/\//i.test(tools);
 }
