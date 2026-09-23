@@ -38,7 +38,7 @@ import {
   makeDiagnostic,
   makeTelemetryDiagnostic,
 } from "./diagnostics";
-import { EnvVar } from "./environment";
+import { ActionsEnvVars, EnvVar } from "./environment";
 import { Feature, FeatureEnablement, initFeatures } from "./feature-flags";
 import { loadRepositoryProperties } from "./feature-flags/properties";
 import {
@@ -63,13 +63,13 @@ import { ToolsSource } from "./setup-codeql";
 import {
   ActionName,
   InitStatusReport,
-  InitToolsDownloadFields,
   InitWithConfigStatusReport,
   createInitWithConfigStatusReport,
   createStatusReportBase,
   getActionsStatus,
   sendStatusReport,
 } from "./status-report";
+import { createInitToolsDownloadFields } from "./status-report/tools-download";
 import { ToolsDownloadStatusReport } from "./tools-download";
 import { ToolsFeature } from "./tools-features";
 import { getCombinedTracerConfig } from "./tracer-config";
@@ -81,7 +81,6 @@ import {
   DEFAULT_DEBUG_ARTIFACT_NAME,
   DEFAULT_DEBUG_DATABASE_NAME,
   getCodeQLMemoryLimit,
-  getRequiredEnvParam,
   getThreadsFlagValue,
   initializeEnvironment,
   ConfigurationError,
@@ -168,23 +167,10 @@ async function sendCompletedStatusReport(
     initStatusReport.computed_inputs.tools = toolsInput;
   }
 
-  const initToolsDownloadFields: InitToolsDownloadFields = {};
-
-  if (toolsDownloadStatusReport?.downloadDurationMs !== undefined) {
-    initToolsDownloadFields.tools_download_duration_ms =
-      toolsDownloadStatusReport.downloadDurationMs;
-  }
-  if (toolsDownloadStatusReport?.extractionDurationMs !== undefined) {
-    initToolsDownloadFields.tools_extraction_duration_ms =
-      toolsDownloadStatusReport.extractionDurationMs;
-  }
-  if (toolsDownloadStatusReport?.totalDurationMs !== undefined) {
-    initToolsDownloadFields.tools_total_duration_ms =
-      toolsDownloadStatusReport.totalDurationMs;
-  }
-  if (toolsFeatureFlagsValid !== undefined) {
-    initToolsDownloadFields.tools_feature_flags_valid = toolsFeatureFlagsValid;
-  }
+  const initToolsDownloadFields = createInitToolsDownloadFields(
+    toolsDownloadStatusReport,
+    toolsFeatureFlagsValid,
+  );
 
   if (config !== undefined) {
     // Append fields that are dependent on `config`
@@ -238,8 +224,8 @@ async function run(
     apiDetails = {
       auth: getRequiredInput("token"),
       externalRepoAuth: getOptionalInput("external-repository-token"),
-      url: getRequiredEnvParam("GITHUB_SERVER_URL"),
-      apiURL: getRequiredEnvParam("GITHUB_API_URL"),
+      url: actionState.env.getRequired(ActionsEnvVars.GITHUB_SERVER_URL),
+      apiURL: actionState.env.getRequired(ActionsEnvVars.GITHUB_API_URL),
     };
 
     const gitHubVersion = await getGitHubVersion();
@@ -268,7 +254,7 @@ async function run(
     // source-root is relative, it is relative to the GITHUB_WORKSPACE. If
     // source-root is absolute, it is used as given.
     sourceRoot = path.resolve(
-      getRequiredEnvParam("GITHUB_WORKSPACE"),
+      actionState.env.getRequired(ActionsEnvVars.GITHUB_WORKSPACE),
       getOptionalInput("source-root") || "",
     );
 
@@ -396,7 +382,9 @@ async function run(
       repository: repositoryNwo,
       tempDir: getTemporaryDirectory(),
       codeql,
-      workspacePath: getRequiredEnvParam("GITHUB_WORKSPACE"),
+      workspacePath: actionState.env.getRequired(
+        ActionsEnvVars.GITHUB_WORKSPACE,
+      ),
       sourceRoot,
       githubVersion: gitHubVersion,
       apiDetails,

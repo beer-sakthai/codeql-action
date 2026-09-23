@@ -12,7 +12,7 @@ import { getGitHubVersion } from "./api-client";
 import { CodeQL } from "./codeql";
 import { ComputedInput, getToolsInput } from "./config/inputs";
 import { getRawLanguagesNoAutodetect } from "./config-utils";
-import { EnvVar } from "./environment";
+import { ActionsEnvVars, EnvVar } from "./environment";
 import { initFeatures } from "./feature-flags";
 import { loadRepositoryProperties } from "./feature-flags/properties";
 import { initCodeQL } from "./init";
@@ -22,17 +22,16 @@ import { ToolsSource } from "./setup-codeql";
 import {
   ActionName,
   InitStatusReport,
-  InitToolsDownloadFields,
   createStatusReportBase,
   getActionsStatus,
   sendStatusReport,
 } from "./status-report";
+import { createInitToolsDownloadFields } from "./status-report/tools-download";
 import { ToolsDownloadStatusReport } from "./tools-download";
 import {
   checkDiskUsage,
   checkForTimeout,
   checkGitHubVersionInRange,
-  getRequiredEnvParam,
   initializeEnvironment,
   ConfigurationError,
   wrapError,
@@ -79,23 +78,10 @@ async function sendCompletedStatusReport(
     initStatusReport.computed_inputs.tools = toolsInput;
   }
 
-  const initToolsDownloadFields: InitToolsDownloadFields = {};
-
-  if (toolsDownloadStatusReport?.downloadDurationMs !== undefined) {
-    initToolsDownloadFields.tools_download_duration_ms =
-      toolsDownloadStatusReport.downloadDurationMs;
-  }
-  if (toolsDownloadStatusReport?.extractionDurationMs !== undefined) {
-    initToolsDownloadFields.tools_extraction_duration_ms =
-      toolsDownloadStatusReport.extractionDurationMs;
-  }
-  if (toolsDownloadStatusReport?.totalDurationMs !== undefined) {
-    initToolsDownloadFields.tools_total_duration_ms =
-      toolsDownloadStatusReport.totalDurationMs;
-  }
-  if (toolsFeatureFlagsValid !== undefined) {
-    initToolsDownloadFields.tools_feature_flags_valid = toolsFeatureFlagsValid;
-  }
+  const initToolsDownloadFields = createInitToolsDownloadFields(
+    toolsDownloadStatusReport,
+    toolsFeatureFlagsValid,
+  );
 
   await sendStatusReport({ ...initStatusReport, ...initToolsDownloadFields });
 }
@@ -121,8 +107,8 @@ async function run(
     const apiDetails = {
       auth: getRequiredInput("token"),
       externalRepoAuth: getOptionalInput("external-repository-token"),
-      url: getRequiredEnvParam("GITHUB_SERVER_URL"),
-      apiURL: getRequiredEnvParam("GITHUB_API_URL"),
+      url: actionState.env.getRequired(ActionsEnvVars.GITHUB_SERVER_URL),
+      apiURL: actionState.env.getRequired(ActionsEnvVars.GITHUB_API_URL),
     };
 
     const gitHubVersion = await getGitHubVersion();
