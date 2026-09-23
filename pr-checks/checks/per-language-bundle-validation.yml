@@ -38,7 +38,7 @@ matrix:
       os: ubuntu-latest
       version: nightly-latest
     - language: swift
-      os: macos-latest-xlarge
+      os: macos-latest
       version: nightly-latest
       build-mode: autobuild
 env:
